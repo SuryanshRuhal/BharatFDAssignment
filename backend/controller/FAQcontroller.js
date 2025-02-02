@@ -1,52 +1,67 @@
-const FAQ = require("../model/faqmodel");
-const translateText = require("../config/translate");
+const FAQ = require('../model/faqmodel');
+const { translate } = require('@vitalets/google-translate-api');
 
-// Create FAQ with translations
-const createFAQ = async (req, res) => {
+exports.addFAQ = async (req, res) => {
   try {
-    const { question, answer, translations } = req.body;
-
-    // Translate question if translations are not provided
-    const question_hi = translations?.question_hi || await translateText(question, "hi");
-    const question_bn = translations?.question_bn || await translateText(question, "bn");
-    const answer_hi = translations?.answer_hi || await translateText(answer, "hi");
-    const answer_bn = translations?.answer_bn || await translateText(answer, "bn");
-
-    // Create a new FAQ document
-    const newFAQ = new FAQ({ 
-      question, 
-      question_hi, 
-      question_bn, 
-      answer, 
-      answer_hi, 
-      answer_bn 
-    });
-
+    const { question, answer } = req.body;
+    const newFAQ = new FAQ({ question, answer });
     await newFAQ.save();
-
-    res.status(201).json({ message: "FAQ created successfully!", newFAQ });
+    res.status(201).json(newFAQ);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: 'Error adding FAQ', error });
   }
 };
 
-// Get FAQs with language support
-const getFAQs = async (req, res) => {
+exports.getAllFAQs = async (req, res) => {
   try {
-    const { lang } = req.query;
-    let faqs = await FAQ.find();
+    const faqs = await FAQ.find();
+    res.status(200).json(faqs);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching FAQs', error });
+  }
+};
 
-    if (lang) {
-      faqs = faqs.map(faq => ({
-        question: faq[`question_${lang}`] || faq.question,
-        answer: faq[`answer_${lang}`] || faq.answer,
-      }));
+exports.translateFAQ = async (req, res) => {
+  try {
+    const { targetLang } = req.body;  
+    console.log("Target Language: ", targetLang);
+    
+    const supportedLanguages = ['en', 'hi', 'bn', 'es', 'fr', 'de', 'pt', 'it', 'ja', 'zh-CN', 'zh-TW', 'ar', 'ru', 'ko', 'tr', 'pl'];  
+
+    if (!supportedLanguages.includes(targetLang)) {
+      return res.status(400).json({ message: `Language not supported. Supported languages are: ${supportedLanguages.join(', ')}` });
     }
 
-    res.json(faqs);
+    const faqs = await FAQ.find();
+
+    const translatedFAQs = await Promise.all(
+      faqs.map(async (faq) => {
+        try {
+          console.log("Translating FAQ: ", faq._id);
+          const translatedQuestion = await translate(faq.question, { to: targetLang });
+          const translatedAnswer = await translate(faq.answer, { to: targetLang });
+          
+          console.log("Translated Question: ", translatedQuestion.text);
+          console.log("Translated Answer: ", translatedAnswer.text);
+          
+          return {
+            _id: faq._id,
+            question: translatedQuestion.text,
+            answer: translatedAnswer.text,
+          };
+        } catch (error) {
+          console.error(`Error translating FAQ with ID ${faq._id}: `, error);
+          return {
+            _id: faq._id,
+            question: faq.question, 
+            answer: faq.answer,    
+          };
+        }
+      })
+    );
+
+    res.status(200).json(translatedFAQs);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: 'Translation failed', error });
   }
 };
-
-module.exports = { createFAQ, getFAQs };

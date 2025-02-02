@@ -1,12 +1,10 @@
 const express = require("express");
-const { createFAQ, getFAQs } = require("../controller/FAQcontroller");
+const { addFAQ,getAllFAQs,translateFAQ } = require("../controller/FAQcontroller");
 
 const router = express.Router();
 
-// Create FAQ route (POST)
-router.post("/addfaq", createFAQ);
-
-// Get FAQs route (GET)
-router.get("/getfaqs", getFAQs);
+router.post('/add', addFAQ);
+router.get('/all', getAllFAQs);
+router.post('/translate', translateFAQ); 
 
 module.exports = router;
